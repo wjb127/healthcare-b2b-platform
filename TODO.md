@@ -18,6 +18,7 @@
 ## 4. 비교 기능 (Comparison Feature)
 - [ ] **구현 여부:**
 - **내용:** 요청자가 응찰한 공급사들의 견적/기간/코멘트를 표로 비교하고, 엑셀 파일로 다운로드하는 기능.
+- **세부 내용:** A 사용자가 B의 응찰 조건(금액/기간/코멘트)을 비교/열람
 - **확인 파일:** `app/dashboard/buyer/projects/[id]/page.tsx`
 
 ## 5. 알림 (Notifications)

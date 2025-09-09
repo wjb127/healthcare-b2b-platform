@@ -19,7 +19,6 @@ import {
   Text,
   VStack,
   HStack,
-  Divider,
   useToast,
 } from '@chakra-ui/react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
@@ -34,8 +33,34 @@ export default function ProjectDetailPage() {
   const { user } = useAuth()
   const { getProjectById, getBidsByProject, updateBidStatus } = useData()
   
-  const [project, setProject] = useState<any>(null)
-  const [bids, setBids] = useState<any[]>([])
+  interface Project {
+    id: string
+    title: string
+    description: string
+    budget: number
+    deadline: string
+    status: string
+    createdBy: string
+    createdAt: string
+    buyerCompany?: string
+    buyerEmail?: string
+  }
+
+  interface Bid {
+    id: string
+    projectId: string
+    bidderId: string
+    amount: number
+    deliveryTime: number
+    proposal: string
+    status: string
+    bidderCompany?: string
+    bidderEmail?: string
+    createdAt: string
+  }
+
+  const [project, setProject] = useState<Project | null>(null)
+  const [bids, setBids] = useState<Bid[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -45,6 +70,7 @@ export default function ProjectDetailPage() {
     }
     
     fetchProjectData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id, user])
 
   const fetchProjectData = () => {
@@ -86,6 +112,8 @@ export default function ProjectDetailPage() {
   }
 
   const exportToExcel = () => {
+    if (!project) return
+    
     const ws = XLSX.utils.json_to_sheet(bids.map(bid => ({
       '업체명': bid.bidderCompany || 'Unknown',
       '입찰금액': bid.amount,

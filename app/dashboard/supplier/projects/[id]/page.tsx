@@ -10,7 +10,6 @@ import {
   CardBody,
   FormControl,
   FormLabel,
-  Input,
   Textarea,
   Button,
   VStack,
@@ -34,8 +33,34 @@ export default function SupplierProjectDetailPage() {
   const { user } = useAuth()
   const { getProjectById, getBidsByProject, createBid } = useData()
   
-  const [project, setProject] = useState<any>(null)
-  const [existingBid, setExistingBid] = useState<any>(null)
+  interface Project {
+    id: string
+    title: string
+    description: string
+    budget: number
+    deadline: string
+    status: string
+    createdBy: string
+    createdAt: string
+    buyerCompany?: string
+    buyerEmail?: string
+  }
+
+  interface Bid {
+    id: string
+    projectId: string
+    bidderId: string
+    amount: number
+    deliveryTime: number
+    proposal: string
+    status: string
+    bidderCompany?: string
+    bidderEmail?: string
+    createdAt: string
+  }
+
+  const [project, setProject] = useState<Project | null>(null)
+  const [existingBid, setExistingBid] = useState<Bid | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
@@ -51,6 +76,7 @@ export default function SupplierProjectDetailPage() {
     }
     
     fetchProjectData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id, user])
 
   const fetchProjectData = () => {
@@ -72,7 +98,7 @@ export default function SupplierProjectDetailPage() {
     // Check if user already submitted a bid
     const bids = getBidsByProject(projectId)
     const userBid = bids.find(bid => bid.bidderId === user?.id)
-    setExistingBid(userBid)
+    setExistingBid(userBid || null)
     
     setLoading(false)
   }
@@ -92,7 +118,7 @@ export default function SupplierProjectDetailPage() {
     setSubmitting(true)
 
     try {
-      const newBid = createBid({
+      createBid({
         projectId: params.id as string,
         bidderId: user.id,
         amount: formData.amount,
@@ -110,7 +136,7 @@ export default function SupplierProjectDetailPage() {
       })
 
       router.push('/dashboard/supplier')
-    } catch (error) {
+    } catch {
       toast({
         title: '입찰 제출 실패',
         description: '다시 시도해주세요',

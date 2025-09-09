@@ -17,7 +17,13 @@ import {
 import { useRouter } from 'next/navigation'
 import { FaHandshake, FaChartLine, FaShieldAlt, FaUsers } from 'react-icons/fa'
 
-const Feature = ({ title, text, icon }: any) => {
+interface FeatureProps {
+  title: string
+  text: string
+  icon: React.ReactElement
+}
+
+const Feature = ({ title, text, icon }: FeatureProps) => {
   return (
     <Stack align={'center'} textAlign="center">
       <Flex

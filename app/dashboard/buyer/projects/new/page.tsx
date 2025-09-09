@@ -52,7 +52,7 @@ export default function NewProjectPage() {
     setLoading(true)
 
     try {
-      const newProject = createProject({
+      createProject({
         ...formData,
         status: 'open',
         createdBy: user.id,
@@ -67,7 +67,7 @@ export default function NewProjectPage() {
       })
 
       router.push('/dashboard/buyer')
-    } catch (error) {
+    } catch {
       toast({
         title: '프로젝트 생성 실패',
         description: '다시 시도해주세요',

@@ -35,7 +35,32 @@ export default function BuyerDashboard() {
     totalBids: 0,
     avgBidAmount: 0,
   })
-  const [recentProjects, setRecentProjects] = useState<any[]>([])
+  interface ProjectWithBids {
+    id: string
+    title: string
+    description: string
+    budget: number
+    deadline: string
+    status: string
+    createdBy: string
+    createdAt: string
+    buyerCompany?: string
+    buyerEmail?: string
+    bids?: Array<{
+      id: string
+      projectId: string
+      bidderId: string
+      amount: number
+      deliveryTime: number
+      proposal: string
+      status: string
+      bidderCompany?: string
+      bidderEmail?: string
+      createdAt: string
+    }>
+  }
+
+  const [recentProjects, setRecentProjects] = useState<ProjectWithBids[]>([])
   const router = useRouter()
   const { user } = useAuth()
   const { getProjectsByUser, getBidsByProject } = useData()
@@ -49,6 +74,7 @@ export default function BuyerDashboard() {
     }
     
     fetchDashboardData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const fetchDashboardData = () => {

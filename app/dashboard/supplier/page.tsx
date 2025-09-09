@@ -35,8 +35,35 @@ export default function SupplierDashboard() {
     acceptedBids: 0,
     avgBidAmount: 0,
   })
-  const [availableProjects, setAvailableProjects] = useState<any[]>([])
-  const [myBids, setMyBids] = useState<any[]>([])
+  interface Project {
+    id: string
+    title: string
+    description: string
+    budget: number
+    deadline: string
+    status: string
+    createdBy: string
+    createdAt: string
+    buyerCompany?: string
+    buyerEmail?: string
+  }
+
+  interface BidWithProject {
+    id: string
+    projectId: string
+    bidderId: string
+    amount: number
+    deliveryTime: number
+    proposal: string
+    status: string
+    bidderCompany?: string
+    bidderEmail?: string
+    createdAt: string
+    projectTitle?: string
+  }
+
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([])
+  const [myBids, setMyBids] = useState<BidWithProject[]>([])
   const router = useRouter()
   const { user } = useAuth()
   const { getProjects, getBidsByUser, getProjectById } = useData()
@@ -50,6 +77,7 @@ export default function SupplierDashboard() {
     }
     
     fetchDashboardData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const fetchDashboardData = () => {
@@ -219,7 +247,7 @@ export default function SupplierDashboard() {
                 <Tbody>
                   {myBids.map((bid) => (
                     <Tr key={bid.id}>
-                      <Td fontWeight="medium">{bid.project?.title}</Td>
+                      <Td fontWeight="medium">{bid.projectTitle}</Td>
                       <Td>{formatCurrency(bid.amount)}</Td>
                       <Td>{bid.deliveryTime}일</Td>
                       <Td>
