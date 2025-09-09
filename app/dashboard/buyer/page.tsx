@@ -24,7 +24,8 @@ import {
   Text,
 } from '@chakra-ui/react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
+import { useData } from '@/contexts/DataContext'
 import { useRouter } from 'next/navigation'
 
 export default function BuyerDashboard() {
@@ -35,56 +36,53 @@ export default function BuyerDashboard() {
     avgBidAmount: 0,
   })
   const [recentProjects, setRecentProjects] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
+  const { user } = useAuth()
+  const { getProjectsByUser, getBidsByProject } = useData()
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  const fetchDashboardData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Fetch projects
-      const { data: projects } = await supabase
-        .from('projects')
-        .select('*, bids(amount)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      if (projects) {
-        setRecentProjects(projects.slice(0, 5))
-        
-        const totalProjects = projects.length
-        const openProjects = projects.filter(p => p.status === 'open').length
-        const allBids = projects.flatMap(p => p.bids || [])
-        const totalBids = allBids.length
-        const avgBidAmount = totalBids > 0 
-          ? allBids.reduce((sum, bid) => sum + bid.amount, 0) / totalBids 
-          : 0
-
-        setStats({
-          totalProjects,
-          openProjects,
-          totalBids,
-          avgBidAmount,
-        })
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-    } finally {
-      setLoading(false)
+    if (!user) return
+    
+    if (user.userType !== 'A') {
+      router.push('/dashboard/supplier')
+      return
     }
+    
+    fetchDashboardData()
+  }, [user])
+
+  const fetchDashboardData = () => {
+    if (!user) return
+    
+    const projects = getProjectsByUser(user.id)
+    const projectsWithBids = projects.map(project => ({
+      ...project,
+      bids: getBidsByProject(project.id)
+    }))
+    
+    setRecentProjects(projectsWithBids.slice(0, 5))
+    
+    const totalProjects = projectsWithBids.length
+    const openProjects = projectsWithBids.filter(p => p.status === 'open').length
+    const allBids = projectsWithBids.flatMap(p => p.bids || [])
+    const totalBids = allBids.length
+    const avgBidAmount = totalBids > 0 
+      ? allBids.reduce((sum, bid) => sum + bid.amount, 0) / totalBids 
+      : 0
+
+    setStats({
+      totalProjects,
+      openProjects,
+      totalBids,
+      avgBidAmount,
+    })
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'open': return 'green'
       case 'closed': return 'gray'
-      case 'awarded': return 'blue'
+      case 'in_progress': return 'blue'
       default: return 'gray'
     }
   }
@@ -101,7 +99,7 @@ export default function BuyerDashboard() {
   }
 
   return (
-    <DashboardLayout userType="A">
+    <DashboardLayout>
       <Box>
         <Heading mb={6}>구매자 대시보드</Heading>
 
@@ -164,7 +162,7 @@ export default function BuyerDashboard() {
                 <Thead>
                   <Tr>
                     <Th>프로젝트명</Th>
-                    <Th>카테고리</Th>
+                    <Th>예산</Th>
                     <Th>마감일</Th>
                     <Th>응찰수</Th>
                     <Th>상태</Th>
@@ -175,13 +173,13 @@ export default function BuyerDashboard() {
                   {recentProjects.map((project) => (
                     <Tr key={project.id}>
                       <Td fontWeight="medium">{project.title}</Td>
-                      <Td>{project.category}</Td>
+                      <Td>{formatCurrency(project.budget)}</Td>
                       <Td>{formatDate(project.deadline)}</Td>
                       <Td>{project.bids?.length || 0}</Td>
                       <Td>
                         <Badge colorScheme={getStatusColor(project.status)}>
                           {project.status === 'open' ? '진행중' : 
-                           project.status === 'closed' ? '마감' : '낙찰'}
+                           project.status === 'closed' ? '마감' : '진행중'}
                         </Badge>
                       </Td>
                       <Td>

@@ -1,7 +1,7 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Box,
   Button,
@@ -9,122 +9,128 @@ import {
   FormLabel,
   Input,
   VStack,
-  Heading,
   Text,
-  useToast,
-  FormErrorMessage,
-} from '@chakra-ui/react'
-import { createClient } from '@/lib/supabase/client'
+  Link,
+  Alert,
+  AlertIcon,
+  Heading,
+  Divider,
+  HStack,
+} from '@chakra-ui/react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginForm() {
-  const router = useRouter()
-  const toast = useToast()
-  const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-
-  const validate = () => {
-    const newErrors: Record<string, string> = {}
-
-    if (!formData.email) newErrors.email = '이메일을 입력해주세요'
-    if (!formData.password) newErrors.password = '비밀번호를 입력해주세요'
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-    setLoading(true)
-    const supabase = createClient()
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      })
-
-      if (error) throw error
-
-      if (data.user) {
-        // Get user profile to determine user type
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_type')
-          .eq('id', data.user.id)
-          .single()
-
-        toast({
-          title: '로그인 성공',
-          description: '대시보드로 이동합니다.',
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        })
-
-        // Redirect based on user type
-        if (profile?.user_type === 'A') {
-          router.push('/dashboard/buyer')
-        } else if (profile?.user_type === 'B') {
-          router.push('/dashboard/supplier')
-        } else {
-          router.push('/dashboard')
-        }
-      }
-    } catch (error: any) {
-      toast({
-        title: '로그인 실패',
-        description: error.message,
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
-    } finally {
-      setLoading(false)
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      setError(error.message);
+      setLoading(false);
     }
-  }
+  };
+
+  const handleDemoLogin = async (demoEmail: string) => {
+    setLoading(true);
+    setError('');
+    const { error } = await signIn(demoEmail, 'demo');
+    
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    }
+  };
 
   return (
     <Box maxW="md" mx="auto" mt={8} p={6} borderWidth={1} borderRadius="lg">
-      <VStack spacing={6} as="form" onSubmit={handleSubmit}>
+      <VStack spacing={4}>
         <Heading size="lg">로그인</Heading>
+        
+        {error && (
+          <Alert status="error">
+            <AlertIcon />
+            {error}
+          </Alert>
+        )}
 
-        <FormControl isRequired isInvalid={!!errors.email}>
-          <FormLabel>이메일</FormLabel>
-          <Input
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          />
-          <FormErrorMessage>{errors.email}</FormErrorMessage>
-        </FormControl>
+        <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+          <VStack spacing={4}>
+            <FormControl isRequired>
+              <FormLabel>이메일</FormLabel>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+              />
+            </FormControl>
 
-        <FormControl isRequired isInvalid={!!errors.password}>
-          <FormLabel>비밀번호</FormLabel>
-          <Input
-            type="password"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-          />
-          <FormErrorMessage>{errors.password}</FormErrorMessage>
-        </FormControl>
+            <FormControl isRequired>
+              <FormLabel>비밀번호</FormLabel>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="비밀번호"
+              />
+            </FormControl>
 
-        <Button type="submit" colorScheme="brand" size="lg" width="full" isLoading={loading}>
-          로그인
-        </Button>
+            <Button
+              type="submit"
+              colorScheme="blue"
+              width="full"
+              isLoading={loading}
+            >
+              로그인
+            </Button>
+          </VStack>
+        </form>
 
-        <Text fontSize="sm">
+        <Divider />
+        
+        <VStack spacing={3} width="full">
+          <Text fontSize="sm" color="gray.600">데모 계정으로 체험하기</Text>
+          <HStack spacing={2} width="full">
+            <Button
+              onClick={() => handleDemoLogin('buyer@example.com')}
+              colorScheme="teal"
+              variant="outline"
+              size="sm"
+              flex={1}
+              isLoading={loading}
+            >
+              구매자 체험
+            </Button>
+            <Button
+              onClick={() => handleDemoLogin('supplier@example.com')}
+              colorScheme="purple"
+              variant="outline"
+              size="sm"
+              flex={1}
+              isLoading={loading}
+            >
+              공급업체 체험
+            </Button>
+          </HStack>
+        </VStack>
+
+        <Text>
           계정이 없으신가요?{' '}
-          <Button variant="link" colorScheme="brand" onClick={() => router.push('/auth/signup')}>
+          <Link color="blue.500" onClick={() => router.push('/auth/signup')}>
             회원가입
-          </Button>
+          </Link>
         </Text>
       </VStack>
     </Box>
-  )
+  );
 }
