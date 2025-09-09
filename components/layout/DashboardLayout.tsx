@@ -21,7 +21,6 @@ import {
   Spinner,
   Center,
 } from '@chakra-ui/react';
-import { HamburgerIcon } from '@chakra-ui/icons';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardLayoutProps {
@@ -139,7 +138,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           bg={sidebarBg}
         >
           <IconButton
-            icon={<HamburgerIcon />}
+            icon={<Text>☰</Text>}
             aria-label="Open menu"
             onClick={onOpen}
           />

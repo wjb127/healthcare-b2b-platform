@@ -8,147 +8,118 @@ import {
   Card,
   CardHeader,
   CardBody,
-  VStack,
-  HStack,
-  Text,
-  Badge,
-  Button,
-  Divider,
   FormControl,
   FormLabel,
   Input,
   Textarea,
+  Button,
+  VStack,
+  HStack,
+  Text,
+  Badge,
   useToast,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  ModalCloseButton,
-  useDisclosure,
-  FormErrorMessage,
+  NumberInput,
+  NumberInputField,
+  Alert,
+  AlertIcon,
 } from '@chakra-ui/react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
+import { useData } from '@/contexts/DataContext'
 
-export default function ProjectDetailPage() {
+export default function SupplierProjectDetailPage() {
   const params = useParams()
   const router = useRouter()
   const toast = useToast()
-  const { isOpen, onOpen, onClose } = useDisclosure()
+  const { user } = useAuth()
+  const { getProjectById, getBidsByProject, createBid } = useData()
+  
   const [project, setProject] = useState<any>(null)
-  const [myBid, setMyBid] = useState<any>(null)
+  const [existingBid, setExistingBid] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [bidForm, setBidForm] = useState({
-    amount: '',
-    deliveryDays: '',
+  const [formData, setFormData] = useState({
+    amount: 0,
+    deliveryTime: 30,
     proposal: '',
   })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const supabase = createClient()
 
   useEffect(() => {
-    fetchProjectData()
-  }, [params.id])
-
-  const fetchProjectData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Fetch project details
-      const { data: projectData } = await supabase
-        .from('projects')
-        .select(`
-          *,
-          profiles!projects_user_id_fkey(company_name, representative_name)
-        `)
-        .eq('id', params.id)
-        .single()
-
-      if (projectData) {
-        setProject(projectData)
-
-        // Check if I already bid on this project
-        const { data: bidData } = await supabase
-          .from('bids')
-          .select('*')
-          .eq('project_id', params.id)
-          .eq('bidder_id', user.id)
-          .single()
-
-        if (bidData) {
-          setMyBid(bidData)
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching project:', error)
-    } finally {
-      setLoading(false)
+    if (!user || user.userType !== 'B') {
+      router.push('/dashboard')
+      return
     }
+    
+    fetchProjectData()
+  }, [params.id, user])
+
+  const fetchProjectData = () => {
+    const projectId = params.id as string
+    const projectData = getProjectById(projectId)
+    
+    if (!projectData) {
+      toast({
+        title: '프로젝트를 찾을 수 없습니다',
+        status: 'error',
+        duration: 3000,
+      })
+      router.push('/dashboard/supplier')
+      return
+    }
+    
+    setProject(projectData)
+    
+    // Check if user already submitted a bid
+    const bids = getBidsByProject(projectId)
+    const userBid = bids.find(bid => bid.bidderId === user?.id)
+    setExistingBid(userBid)
+    
+    setLoading(false)
   }
 
-  const validate = () => {
-    const newErrors: Record<string, string> = {}
-
-    if (!bidForm.amount) newErrors.amount = '응찰 금액을 입력해주세요'
-    if (Number(bidForm.amount) <= 0) newErrors.amount = '유효한 금액을 입력해주세요'
-    if (!bidForm.deliveryDays) newErrors.deliveryDays = '납기 일수를 입력해주세요'
-    if (Number(bidForm.deliveryDays) <= 0) newErrors.deliveryDays = '유효한 일수를 입력해주세요'
-    if (!bidForm.proposal) newErrors.proposal = '제안서를 작성해주세요'
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleSubmitBid = async () => {
-    if (!validate()) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!user) {
+      toast({
+        title: '로그인이 필요합니다',
+        status: 'error',
+        duration: 3000,
+      })
+      return
+    }
 
     setSubmitting(true)
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
-
-      const { error } = await supabase
-        .from('bids')
-        .insert({
-          project_id: params.id,
-          bidder_id: user.id,
-          amount: Number(bidForm.amount),
-          delivery_days: Number(bidForm.deliveryDays),
-          proposal: bidForm.proposal,
-          status: 'submitted',
-        })
-
-      if (error) throw error
-
-      toast({
-        title: '응찰 완료',
-        description: '응찰이 성공적으로 제출되었습니다.',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
+      const newBid = createBid({
+        projectId: params.id as string,
+        bidderId: user.id,
+        amount: formData.amount,
+        deliveryTime: formData.deliveryTime,
+        proposal: formData.proposal,
+        status: 'pending',
+        bidderCompany: user.companyName,
+        bidderEmail: user.email,
       })
 
-      onClose()
-      fetchProjectData()
-    } catch (error: any) {
       toast({
-        title: '응찰 실패',
-        description: error.message,
+        title: '입찰이 제출되었습니다',
+        status: 'success',
+        duration: 3000,
+      })
+
+      router.push('/dashboard/supplier')
+    } catch (error) {
+      toast({
+        title: '입찰 제출 실패',
+        description: '다시 시도해주세요',
         status: 'error',
-        duration: 5000,
-        isClosable: true,
+        duration: 3000,
       })
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('ko-KR')
   }
 
   const formatCurrency = (amount: number) => {
@@ -158,199 +129,175 @@ export default function ProjectDetailPage() {
     }).format(amount)
   }
 
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('ko-KR')
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'yellow'
+      case 'accepted': return 'green'
+      case 'rejected': return 'red'
+      default: return 'gray'
+    }
+  }
+
   if (loading) {
     return (
-      <DashboardLayout userType="B">
-        <Text>로딩중...</Text>
+      <DashboardLayout>
+        <Box>Loading...</Box>
       </DashboardLayout>
     )
   }
 
   if (!project) {
-    return (
-      <DashboardLayout userType="B">
-        <Text>프로젝트를 찾을 수 없습니다.</Text>
-      </DashboardLayout>
-    )
+    return null
   }
 
-  const isDeadlinePassed = new Date(project.deadline) < new Date()
-
   return (
-    <DashboardLayout userType="B">
-      <Box maxW="4xl" mx="auto">
-        <HStack justify="space-between" mb={6}>
-          <Heading>{project.title}</Heading>
-          <Badge
-            colorScheme={project.status === 'open' ? 'green' : 'gray'}
-            fontSize="md"
-            px={3}
-            py={1}
-          >
-            {project.status === 'open' ? '진행중' : '마감'}
-          </Badge>
-        </HStack>
+    <DashboardLayout>
+      <Box maxW="3xl" mx="auto">
+        <VStack align="stretch" spacing={6}>
+          <HStack justify="space-between">
+            <Heading size="lg">{project.title}</Heading>
+            <Button
+              variant="outline"
+              onClick={() => router.push('/dashboard/supplier')}
+            >
+              목록으로
+            </Button>
+          </HStack>
 
-        <Card mb={6}>
-          <CardHeader>
-            <Heading size="md">프로젝트 정보</Heading>
-          </CardHeader>
-          <CardBody>
-            <VStack align="stretch" spacing={4}>
-              <HStack justify="space-between">
-                <Text fontWeight="bold">구매자:</Text>
-                <Text>{project.profiles?.company_name}</Text>
-              </HStack>
-              <HStack justify="space-between">
-                <Text fontWeight="bold">카테고리:</Text>
-                <Text>{project.category}</Text>
-              </HStack>
-              {project.region && (
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">지역:</Text>
-                  <Text>{project.region}</Text>
-                </HStack>
-              )}
-              <HStack justify="space-between">
-                <Text fontWeight="bold">응찰 마감일:</Text>
-                <Text color={isDeadlinePassed ? 'red.500' : 'inherit'}>
-                  {formatDate(project.deadline)}
-                </Text>
-              </HStack>
-              {project.schedule_start && project.schedule_end && (
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">프로젝트 기간:</Text>
-                  <Text>
-                    {formatDate(project.schedule_start)} ~ {formatDate(project.schedule_end)}
-                  </Text>
-                </HStack>
-              )}
-              {(project.budget_min || project.budget_max) && (
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">예산 범위:</Text>
-                  <Text>
-                    {project.budget_min && formatCurrency(project.budget_min)}
-                    {project.budget_min && project.budget_max && ' ~ '}
-                    {project.budget_max && formatCurrency(project.budget_max)}
-                  </Text>
-                </HStack>
-              )}
-            </VStack>
-          </CardBody>
-        </Card>
-
-        <Card mb={6}>
-          <CardHeader>
-            <Heading size="md">상세 요구사항</Heading>
-          </CardHeader>
-          <CardBody>
-            <Text whiteSpace="pre-wrap">{project.requirements}</Text>
-          </CardBody>
-        </Card>
-
-        {myBid ? (
           <Card>
             <CardHeader>
-              <Heading size="md">내 응찰 내역</Heading>
+              <Heading size="md">프로젝트 정보</Heading>
             </CardHeader>
             <CardBody>
               <VStack align="stretch" spacing={4}>
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">응찰 금액:</Text>
-                  <Text>{formatCurrency(myBid.amount)}</Text>
+                <HStack>
+                  <Text fontWeight="bold" minW="120px">발주처:</Text>
+                  <Text>{project.buyerCompany}</Text>
                 </HStack>
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">납기 일수:</Text>
-                  <Text>{myBid.delivery_days}일</Text>
-                </HStack>
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">상태:</Text>
-                  <Badge colorScheme={
-                    myBid.status === 'accepted' ? 'green' :
-                    myBid.status === 'rejected' ? 'red' :
-                    myBid.status === 'reviewed' ? 'blue' : 'yellow'
-                  }>
-                    {myBid.status === 'submitted' ? '제출됨' :
-                     myBid.status === 'reviewed' ? '검토중' :
-                     myBid.status === 'accepted' ? '낙찰' : '탈락'}
+                <HStack>
+                  <Text fontWeight="bold" minW="120px">상태:</Text>
+                  <Badge colorScheme={project.status === 'open' ? 'green' : 'gray'}>
+                    {project.status === 'open' ? '입찰 진행중' : '마감'}
                   </Badge>
                 </HStack>
-                <Divider />
+                <HStack>
+                  <Text fontWeight="bold" minW="120px">예산:</Text>
+                  <Text>{formatCurrency(project.budget)}</Text>
+                </HStack>
+                <HStack>
+                  <Text fontWeight="bold" minW="120px">마감일:</Text>
+                  <Text>{formatDate(project.deadline)}</Text>
+                </HStack>
                 <Box>
-                  <Text fontWeight="bold" mb={2}>제안 내용:</Text>
-                  <Text whiteSpace="pre-wrap">{myBid.proposal}</Text>
+                  <Text fontWeight="bold" mb={2}>설명:</Text>
+                  <Text whiteSpace="pre-wrap">{project.description}</Text>
                 </Box>
               </VStack>
             </CardBody>
           </Card>
-        ) : (
-          <Box textAlign="center">
-            {!isDeadlinePassed && project.status === 'open' ? (
-              <Button colorScheme="brand" size="lg" onClick={onOpen}>
-                응찰하기
-              </Button>
-            ) : (
-              <Text color="gray.500">응찰 마감되었습니다</Text>
-            )}
-          </Box>
-        )}
 
-        {/* Bid Submission Modal */}
-        <Modal isOpen={isOpen} onClose={onClose} size="xl">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>응찰서 제출</ModalHeader>
-            <ModalCloseButton />
-            <ModalBody>
-              <VStack spacing={4}>
-                <FormControl isRequired isInvalid={!!errors.amount}>
-                  <FormLabel>응찰 금액 (원)</FormLabel>
-                  <Input
-                    type="number"
-                    value={bidForm.amount}
-                    onChange={(e) => setBidForm({ ...bidForm, amount: e.target.value })}
-                    placeholder="응찰 금액을 입력하세요"
-                  />
-                  <FormErrorMessage>{errors.amount}</FormErrorMessage>
-                </FormControl>
+          {existingBid ? (
+            <Card>
+              <CardHeader>
+                <Heading size="md">제출한 입찰</Heading>
+              </CardHeader>
+              <CardBody>
+                <Alert status={existingBid.status === 'accepted' ? 'success' : existingBid.status === 'rejected' ? 'error' : 'info'}>
+                  <AlertIcon />
+                  {existingBid.status === 'accepted' ? '축하합니다! 낙찰되었습니다.' :
+                   existingBid.status === 'rejected' ? '아쉽게도 선정되지 않았습니다.' :
+                   '입찰이 심사 중입니다.'}
+                </Alert>
+                <VStack align="stretch" spacing={3} mt={4}>
+                  <HStack>
+                    <Text fontWeight="bold" minW="120px">입찰금액:</Text>
+                    <Text>{formatCurrency(existingBid.amount)}</Text>
+                  </HStack>
+                  <HStack>
+                    <Text fontWeight="bold" minW="120px">납기일:</Text>
+                    <Text>{existingBid.deliveryTime}일</Text>
+                  </HStack>
+                  <Box>
+                    <Text fontWeight="bold" mb={2}>제안내용:</Text>
+                    <Text whiteSpace="pre-wrap">{existingBid.proposal}</Text>
+                  </Box>
+                  <HStack>
+                    <Text fontWeight="bold" minW="120px">상태:</Text>
+                    <Badge colorScheme={getStatusColor(existingBid.status)}>
+                      {existingBid.status === 'pending' ? '심사중' :
+                       existingBid.status === 'accepted' ? '낙찰' : '탈락'}
+                    </Badge>
+                  </HStack>
+                </VStack>
+              </CardBody>
+            </Card>
+          ) : project.status === 'open' ? (
+            <Card>
+              <CardHeader>
+                <Heading size="md">입찰 제출</Heading>
+              </CardHeader>
+              <CardBody>
+                <form onSubmit={handleSubmit}>
+                  <VStack spacing={4}>
+                    <FormControl isRequired>
+                      <FormLabel>입찰금액 (원)</FormLabel>
+                      <NumberInput
+                        value={formData.amount}
+                        onChange={(value) => setFormData({ ...formData, amount: parseInt(value) || 0 })}
+                        min={0}
+                        max={project.budget}
+                      >
+                        <NumberInputField placeholder="입찰 금액을 입력하세요" />
+                      </NumberInput>
+                      <Text fontSize="sm" color="gray.500" mt={1}>
+                        예산: {formatCurrency(project.budget)}
+                      </Text>
+                    </FormControl>
 
-                <FormControl isRequired isInvalid={!!errors.deliveryDays}>
-                  <FormLabel>납기 일수</FormLabel>
-                  <Input
-                    type="number"
-                    value={bidForm.deliveryDays}
-                    onChange={(e) => setBidForm({ ...bidForm, deliveryDays: e.target.value })}
-                    placeholder="프로젝트 완료까지 필요한 일수"
-                  />
-                  <FormErrorMessage>{errors.deliveryDays}</FormErrorMessage>
-                </FormControl>
+                    <FormControl isRequired>
+                      <FormLabel>납기일 (일)</FormLabel>
+                      <NumberInput
+                        value={formData.deliveryTime}
+                        onChange={(value) => setFormData({ ...formData, deliveryTime: parseInt(value) || 30 })}
+                        min={1}
+                      >
+                        <NumberInputField placeholder="납기일을 입력하세요" />
+                      </NumberInput>
+                    </FormControl>
 
-                <FormControl isRequired isInvalid={!!errors.proposal}>
-                  <FormLabel>제안서</FormLabel>
-                  <Textarea
-                    value={bidForm.proposal}
-                    onChange={(e) => setBidForm({ ...bidForm, proposal: e.target.value })}
-                    placeholder="프로젝트 수행 계획과 강점을 작성해주세요"
-                    rows={8}
-                  />
-                  <FormErrorMessage>{errors.proposal}</FormErrorMessage>
-                </FormControl>
-              </VStack>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onClose}>
-                취소
-              </Button>
-              <Button
-                colorScheme="brand"
-                onClick={handleSubmitBid}
-                isLoading={submitting}
-              >
-                응찰 제출
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+                    <FormControl isRequired>
+                      <FormLabel>제안내용</FormLabel>
+                      <Textarea
+                        value={formData.proposal}
+                        onChange={(e) => setFormData({ ...formData, proposal: e.target.value })}
+                        placeholder="제안 내용을 상세히 작성해주세요"
+                        rows={6}
+                      />
+                    </FormControl>
+
+                    <Button
+                      type="submit"
+                      colorScheme="blue"
+                      width="full"
+                      isLoading={submitting}
+                    >
+                      입찰 제출
+                    </Button>
+                  </VStack>
+                </form>
+              </CardBody>
+            </Card>
+          ) : (
+            <Alert status="warning">
+              <AlertIcon />
+              이 프로젝트는 마감되었습니다.
+            </Alert>
+          )}
+        </VStack>
       </Box>
     </DashboardLayout>
   )
